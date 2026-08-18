@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pulse — Push通知メッセンジャー</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0B1220;
+    --surface: #101A2E;
+    --surface-2: #16223A;
+    --bubble-them: #1C2740;
+    --bubble-mine: #1F5C4C;
+    --accent: #4ADE80;
+    --accent-dim: rgba(74, 222, 128, 0.18);
+    --text: #E7ECF3;
+    --muted: #7C8AA5;
+    --danger: #E86A6A;
+    --radius: 16px;
+  }
+  *{ box-sizing: border-box; }
+  html, body{ height: 100%; }
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(74,222,128,0.06), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:100vh;
+    padding:24px;
+  }
+
+  .app{
+    width:100%;
+    max-width: 920px;
+    height: 720px;
+    max-height: 92vh;
+    background: var(--surface);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 20px;
+    display:grid;
+    grid-template-columns: 260px 1fr;
+    overflow:hidden;
+    box-shadow: 0 40px 80px -30px rgba(0,0,0,0.6);
+  }
+
+  /* Sidebar */
+  .sidebar{
+    background: var(--surface-2);
+    border-right:1px solid rgba(255,255,255,0.06);
+    display:flex;
+    flex-direction:column;
+    min-height:0;
+  }
+  .brand{
+    padding: 22px 20px 16px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .brand-mark{
+    width:34px; height:34px;
+    border-radius:10px;
+    background: var(--accent-dim);
+    display:flex; align-items:center; justify-content:center;
+    position:relative;
+    flex-shrink:0;
+  }
+  .brand-mark::before{
+    content:"";
+    width:10px; height:10px;
+    border-radius:50%;
+    background: var(--accent);
+  }
+  .brand-name{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:17px;
+    letter-spacing:0.2px;
+  }
+  .brand-sub{
+    font-size:11px;
+    color: var(--muted);
+    font-family:'JetBrains Mono', monospace;
+    margin-top:1px;
+  }
+
+  .perm-box{
+    margin:16px 16px 8px;
+    padding:14px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.03);
+    border:1px solid rgba(255,255,255,0.06);
+  }
+  .perm-box p{
+    margin:0 0 10px;
+    font-size:12.5px;
+    color: var(--muted);
+    line-height:1.5;
+  }
+  .perm-status{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:4px 8px;
+    border-radius:999px;
+    background: rgba(255,255,255,0.05);
+    color: var(--muted);
+    margin-bottom:10px;
+  }
+  .dot{ width:6px; height:6px; border-radius:50%; background:var(--muted); }
+  .dot.on{ background: var(--accent); box-shadow:0 0 0 0 var(--accent); animation: pulseDot 1.8s infinite; }
+  .dot.off{ background: var(--danger); }
+  @keyframes pulseDot{
+    0%{ box-shadow: 0 0 0 0 rgba(74,222,128,0.5); }
+    70%{ box-shadow: 0 0 0 6px rgba(74,222,128,0); }
+    100%{ box-shadow: 0 0 0 0 rgba(74,222,128,0); }
+  }
+
+  button{
+    font-family:'Inter', sans-serif;
+    cursor:pointer;
+    border:none;
+  }
+  .btn-enable{
+    width:100%;
+    padding:9px 12px;
+    border-radius:9px;
+    background: var(--accent);
+    color:#06251A;
+    font-weight:600;
+    font-size:12.5px;
+  }
+  .btn-enable:disabled{
+    background: rgba(255,255,255,0.08);
+    color: var(--muted);
+    cursor:default;
+  }
+
+  .contacts{
+    flex:1;
+    overflow-y:auto;
+    padding:6px 10px;
+  }
+  .contact{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:10px 10px;
+    border-radius:12px;
+    margin-bottom:2px;
+  }
+  .contact.active{ background: rgba(255,255,255,0.05); }
+  .avatar{
+    width:36px; height:36px;
+    border-radius:10px;
+    background: linear-gradient(135deg, #2F6F5E, #16223A);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:13px;
+    flex-shrink:0;
+  }
+  .contact-name{ font-size:13.5px; font-weight:500; }
+  .contact-last{ font-size:11.5px; color:var(--muted); margin-top:1px; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  /* Main */
+  .main{
+    display:flex;
+    flex-direction:column;
+    min-height:0;
+  }
+  .chat-header{
+    padding:18px 24px;
+    border-bottom:1px solid rgba(255,255,255,0.06);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .chat-title{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:500;
+    font-size:15px;
+  }
+  .chat-status{
+    font-size:11px;
+    color:var(--muted);
+    font-family:'JetBrains Mono', monospace;
+    margin-top:2px;
+  }
+  .ping-indicator{
+    position:relative;
+    width:14px; height:14px;
+  }
+  .ping-indicator .core{
+    position:absolute; inset:4px;
+    border-radius:50%;
+    background: var(--accent);
+  }
+  .ping-indicator .ring{
+    position:absolute; inset:0;
+    border-radius:50%;
+    border:1px solid var(--accent);
+    opacity:0;
+  }
+  .ping-indicator.active .ring{
+    animation: ping 1.2s ease-out infinite;
+  }
+  @keyframes ping{
+    0%{ opacity:0.7; transform:scale(0.6); }
+    100%{ opacity:0; transform:scale(2.2); }
+  }
+
+  .messages{
+    flex:1;
+    overflow-y:auto;
+    padding:24px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .msg-row{ display:flex; }
+  .msg-row.mine{ justify-content:flex-end; }
+  .bubble{
+    max-width:62%;
+    padding:10px 14px;
+    border-radius: var(--radius);
+    font-size:13.5px;
+    line-height:1.5;
+    position:relative;
+    animation: rise 0.25s ease;
+  }
+  @keyframes rise{
+    from{ opacity:0; transform: translateY(6px); }
+    to{ opacity:1; transform: translateY(0); }
+  }
+  .msg-row.them .bubble{ background: var(--bubble-them); border-bottom-left-radius:4px; }
+  .msg-row.mine .bubble{ background: var(--bubble-mine); border-bottom-right-radius:4px; }
+  .meta{
+    font-family:'JetBrains Mono', monospace;
+    font-size:9.5px;
+    color: var(--muted);
+    margin-top:5px;
+    display:flex;
+    gap:6px;
+    align-items:center;
+  }
+  .msg-row.mine .meta{ justify-content:flex-end; }
+
+  .composer{
+    padding:16px 20px;
+    border-top:1px solid rgba(255,255,255,0.06);
+    display:flex;
+    gap:10px;
+    align-items:center;
+  }
+  .composer input{
+    flex:1;
+    background: var(--surface-2);
+    border:1px solid rgba(255,255,255,0.07);
+    border-radius:12px;
+    padding:11px 14px;
+    color: var(--text);
+    font-size:13.5px;
+    font-family:'Inter', sans-serif;
+  }
+  .composer input:focus{ outline:1.5px solid var(--accent); }
+  .send-btn{
+    width:42px; height:42px;
+    border-radius:12px;
+    background: var(--accent);
+    color:#06251A;
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0;
+    position:relative;
+    overflow:visible;
+  }
+  .send-btn svg{ width:17px; height:17px; }
+  .send-btn .ripple{
+    position:absolute; inset:0;
+    border-radius:12px;
+    border:1.5px solid var(--accent);
+    opacity:0;
+    pointer-events:none;
+  }
+  .send-btn.fire .ripple{ animation: ping 0.6s ease-out; }
+
+  .info-strip{
+    font-size:10.5px;
+    color: var(--muted);
+    font-family:'JetBrains Mono', monospace;
+    padding: 0 20px 12px;
+    text-align:center;
+  }
+
+  .contacts::-webkit-scrollbar, .messages::-webkit-scrollbar{ width:6px; }
+  .contacts::-webkit-scrollbar-thumb, .messages::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.1); border-radius:10px; }
+
+  @media (max-width: 640px){
+    .app{ grid-template-columns: 1fr; height: 100vh; max-height:100vh; border-radius:0; }
+    .sidebar{ display:none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div>
+        <div class="brand-name">Pulse</div>
+        <div class="brand-sub">push-notify demo</div>
+      </div>
+    </div>
+
+    <div class="perm-box">
+      <p>このタブが非アクティブなときでも、新着メッセージをブラウザ通知（Notification API）でお知らせします。</p>
+      <div class="perm-status" id="permStatus"><span class="dot off" id="permDot"></span><span id="permText">未許可</span></div>
+      <button class="btn-enable" id="enableBtn">通知を許可する</button>
+    </div>
+
+    <div class="contacts">
+      <div class="contact active">
+        <div class="avatar">SB</div>
+        <div>
+          <div class="contact-name">Signal Bot</div>
+          <div class="contact-last" id="sidebarLast">オンライン</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="chat-header">
+      <div>
+        <div class="chat-title">Signal Bot</div>
+        <div class="chat-status" id="chatStatus">receiving on this device</div>
+      </div>
+      <div class="ping-indicator" id="pingIndicator">
+        <div class="ring"></div>
+        <div class="core"></div>
+      </div>
+    </div>
+
+    <div class="messages" id="messages"></div>
+
+    <div class="composer">
+      <input type="text" id="msgInput" placeholder="メッセージを入力..." autocomplete="off">
+      <button class="send-btn" id="sendBtn">
+        <div class="ripple"></div>
+        <svg viewBox="0 0 24 24" fill="none"><path d="M4 12L20 4L14 20L11 13L4 12Z" stroke="#06251A" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="info-strip">送信するとBotが数秒後に自動返信します。タブを切り替えて通知を確認してみてください。</div>
+  </main>
+</div>
+
+<script>
+(function(){
+  const messagesEl = document.getElementById('messages');
+  const msgInput = document.getElementById('msgInput');
+  const sendBtn = document.getElementById('sendBtn');
+  const enableBtn = document.getElementById('enableBtn');
+  const permDot = document.getElementById('permDot');
+  const permText = document.getElementById('permText');
+  const pingIndicator = document.getElementById('pingIndicator');
+  const sidebarLast = document.getElementById('sidebarLast');
+  const chatStatus = document.getElementById('chatStatus');
+
+  const botReplies = [
+    "了解しました、確認しておきますね。",
+    "なるほど、それは良いアイデアですね！",
+    "ちょっと調べてから折り返します。",
+    "今そっちに向かってます、5分ほどで着きます。",
+    "了解です👍 資料は明日までに送ります。",
+    "すみません、少し立て込んでいて返信が遅れました。",
+  ];
+
+  function nowLabel(){
+    const d = new Date();
+    return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+  }
+
+  function addMessage(text, mine){
+    const row = document.createElement('div');
+    row.className = 'msg-row ' + (mine ? 'mine' : 'them');
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.textContent = text;
+    const wrap = document.createElement('div');
+    wrap.appendChild(bubble);
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = nowLabel() + (mine ? ' · sent' : ' · received');
+    wrap.appendChild(meta);
+    row.appendChild(wrap);
+    messagesEl.appendChild(row);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    sidebarLast.textContent = text.length > 22 ? text.slice(0,22) + '…' : text;
+  }
+
+  function updatePermUI(){
+    if(!('Notification' in window)){
+      permText.textContent = '非対応のブラウザ';
+      permDot.className = 'dot off';
+      enableBtn.disabled = true;
+      enableBtn.textContent = '通知APIなし';
+      return;
+    }
+    const perm = Notification.permission;
+    if(perm === 'granted'){
+      permText.textContent = '許可済み';
+      permDot.className = 'dot on';
+      enableBtn.disabled = true;
+      enableBtn.textContent = '通知は有効です';
+      chatStatus.textContent = 'push notifications: on';
+    } else if(perm === 'denied'){
+      permText.textContent = 'ブロック中（ブラウザ設定から変更してください）';
+      permDot.className = 'dot off';
+      enableBtn.disabled = true;
+      enableBtn.textContent = '許可がブロックされています';
+    } else {
+      permText.textContent = '未許可';
+      permDot.className = 'dot off';
+      enableBtn.disabled = false;
+      enableBtn.textContent = '通知を許可する';
+      chatStatus.textContent = 'push notifications: off';
+    }
+  }
+
+  enableBtn.addEventListener('click', async () => {
+    if(!('Notification' in window)) return;
+    try{
+      const result = await Notification.requestPermission();
+      updatePermUI();
+      if(result === 'granted'){
+        new Notification('Pulse', { body: '通知が有効になりました。バックグラウンドでも新着を受け取れます。' });
+      }
+    }catch(e){
+      console.error(e);
+    }
+  });
+
+  function firePush(text){
+    // タブが非表示のときだけブラウザ通知を発火する
+    if('Notification' in window && Notification.permission === 'granted' && document.visibilityState === 'hidden'){
+      const n = new Notification('Signal Bot', {
+        body: text,
+        tag: 'pulse-message',
+      });
+      n.onclick = () => { window.focus(); n.close(); };
+    }
+    // タブがアクティブなときはUI上のping演出で代替
+    pingIndicator.classList.add('active');
+    setTimeout(() => pingIndicator.classList.remove('active'), 2400);
+  }
+
+  function botReply(){
+    const text = botReplies[Math.floor(Math.random() * botReplies.length)];
+    addMessage(text, false);
+    firePush(text);
+  }
+
+  function sendMessage(){
+    const text = msgInput.value.trim();
+    if(!text) return;
+    addMessage(text, true);
+    msgInput.value = '';
+    sendBtn.classList.add('fire');
+    setTimeout(() => sendBtn.classList.remove('fire'), 650);
+    setTimeout(botReply, 1400 + Math.random() * 1400);
+  }
+
+  sendBtn.addEventListener('click', sendMessage);
+  msgInput.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter') sendMessage();
+  });
+
+  // 初期メッセージ
+  addMessage('やあ！Pulseへようこそ 👋 タブを切り替えてからメッセージを送ってみて、通知の動きを確認してみてね。', false);
+  updatePermUI();
+})();
+</script>
+
+</body>
+</html>
